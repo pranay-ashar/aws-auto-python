@@ -1,5 +1,14 @@
-# aws-auto-python
+# AWS Automation using Python.
 
-# This is a new python repo so please understand.
-This is a *repo to store code for aws* python automation project;
-This is the code to store the code for aws ptyhon oaaa projectsssssss.
+Repository for to develop projects to create apps for AWS automation using Python.
+
+## 01 - Webotron :-
+
+Webotron is a script that will sync a local directory to an s3bucket, and optionally configure Route 53 and cloudfront as well.
+
+### Features
+
+Webotron currently has the following Features:
+
+- Method list_buckets to list all the s3 Buckets peresnt in the account.
+- Method list_bucket_objects to list all the objects within a specific s3 bucket.
