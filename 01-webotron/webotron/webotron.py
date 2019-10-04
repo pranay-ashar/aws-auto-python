@@ -14,22 +14,33 @@ from botocore.exceptions import ClientError
 import boto3
 import click
 
-session = boto3.Session(profile_name="pythonAutomation")
-s3 = session.resource("s3")
+from bucket import BucketManager
 
+#s3 = session.resource("s3")
+
+sesssion = None
+bucket_manager = None
 
 # Click Group to Deploy websites onto AWS
 @click.group()
-def cli():
+@click.option('--profile', default=None,
+        help="Use a given AWS profile.")
+def cli(profile):
     """Webtron deploying websites to AWS"""
-    pass
+    global session, bucket_manager
+
+    session_cfg = {}
+    if profile:
+        session_cfg['profile_name'] = profile
+    session = boto3.Session(**session_cfg)
+    bucket_manager = BucketManager(session)
 
 
 # Click Command to to list all the s3 buckets present on your account.
 @cli.command('list-buckets')
 def list_buckets():
     """List all the s3 buckets present."""
-    for buckets in s3.buckets.all():
+    for buckets in bucket_manager.s3.buckets.all():
         print(buckets)
 
 
@@ -109,7 +120,7 @@ def upload_file(s3_bucket, path, key):
 @click.argument('bucket')
 def sync(pathname, bucket):
     """Sync content of PATHNAME to BUCKET"""
-    s3_bucket = s3.Bucket(bucket)
+    s3_bucket = bucket_manager.s3.Bucket(bucket)
 
     root = Path(pathname).expanduser().resolve()
 
@@ -121,6 +132,7 @@ def sync(pathname, bucket):
                 upload_file(s3_bucket, str(p), str(p.relative_to(root)))
 
     handle_directory(root)
+    print(bucket_manager.get_bucket_url(s3_bucket))
 
 
 if __name__ == "__main__":
