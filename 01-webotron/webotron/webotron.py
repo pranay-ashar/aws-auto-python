@@ -9,6 +9,7 @@ Webotor automates the process of deploying a static Website on to AWS.
 """
 from pathlib import Path
 import mimetypes
+from functools import reduce
 
 from botocore.exceptions import ClientError
 import boto3
@@ -97,6 +98,43 @@ def setup_bucket(bucket):
             'Suffix': 'string'
         }})
 
+def hash_data(data):
+    """Generate the hash values for objects in the s3 bucket"""
+    hash = md5()
+    hash.update(data)
+
+    return hash
+
+def gen_etag(path):
+    """Generate etag for the files."""
+    hashes = []
+
+    with open(path,'rb') as f:
+        while True:
+            data = f.read(bucket_manager.CHUNK_SIZE)
+
+            if not data:
+                break
+
+                hashes.append(hash_data(data))
+
+    if not hashes:
+        return
+    elif len(hashes) == 1:
+        return "{}".format(hashes[0].hexdigest())
+    else:
+        hash = hash_data(reduce(lambda x,y: x + y,(h.digest() for h in hashes)))
+        return '"{} - {}"'.format(hash.hexdigest(), len(hashes))
+
+
+
+def load_mainfest(bucket):
+    """Loading the Etag for the funciton."""
+    paginator = bucket_manager.s3.meta.client.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket= bucket.name):
+        for obj in page.get('Contents', []):
+            bucket_manager.manifest[obj['Key']] = obj['ETag']
+
 
 # Method to upload files onto the s3 Bucket.
 def upload_file(s3_bucket, path, key):
@@ -104,12 +142,19 @@ def upload_file(s3_bucket, path, key):
     content_type = mimetypes.guess_type(key)[0] or 'text/plain'
     path = path.replace('\\', '/')
     key = key.replace("\\", "/")
+
+    etag = gen_etag(path)
+    if bucket_manager.manifest.get(key,'') == etag:
+        print("Skipping an already exisitng file.")
+        return
+
     s3_bucket.upload_file(
         path,
         key,
         ExtraArgs={
             'ContentType': content_type
-        }
+        },
+        Config=bucket_manager.transfer_config
         )
 
 
@@ -121,6 +166,7 @@ def upload_file(s3_bucket, path, key):
 def sync(pathname, bucket):
     """Sync content of PATHNAME to BUCKET"""
     s3_bucket = bucket_manager.s3.Bucket(bucket)
+    load_mainfest(s3_bucket)
 
     root = Path(pathname).expanduser().resolve()
 
